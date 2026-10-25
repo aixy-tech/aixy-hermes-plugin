@@ -1,0 +1,20 @@
+name: aixy
+version: "0.1.0"
+description: "Configure Aixy inference and optionally connect Aixy tools through native MCP OAuth."
+author: "Aixy"
+license: MIT
+kind: standalone
+requires_hermes: ">=0.22.5"
+provides_tools: []
+provides_hooks: []
+config_schema:
+  api_key:
+    type: secret
+    env: AIXY_API_KEY
+    required: false
+    label: Aixy project API key
+    description: "Stored by guided inference setup; optional when connecting MCP only."
+tags:
+  - inference
+  - mcp
+  - setup
