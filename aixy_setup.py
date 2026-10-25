@@ -29,6 +29,16 @@ class SetupError(ValueError):
     """An actionable message that contains no credential or server response text."""
 
 
+def _context_length_argument(value):
+    try:
+        context = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("Context length must be a positive token count.") from None
+    if context <= 0:
+        raise argparse.ArgumentTypeError("Context length must be a positive token count.")
+    return context
+
+
 def _require_interactive_terminal():
     """Reject unattended setup before reading the profile, secrets, or network."""
     unattended = any(
@@ -48,6 +58,11 @@ def setup_parser(subparser):
     setup = commands.add_parser("setup", help="Configure inference, then optionally connect MCP")
     setup.add_argument("--base-url", help="Aixy inference base URL (HTTPS, normally ending in /v1)")
     setup.add_argument("--mcp-url", help="Independent Aixy MCP endpoint URL for optional OAuth")
+    setup.add_argument(
+        "--context-length",
+        type=_context_length_argument,
+        help="Optional context window override in tokens; default: automatic",
+    )
     mcp = commands.add_parser("mcp", help="Connect Aixy MCP through Hermes OAuth at any time")
     mcp.add_argument("--url", help="Aixy MCP endpoint URL")
     subparser.set_defaults(func=handle_command)
@@ -236,14 +251,11 @@ def _choose_model(models, current, api_key):
         suffix = (
             f" ({context} context tokens)"
             if isinstance(context, int) and not isinstance(context, bool) and context > 0
-            else " (context not advertised)"
+            else ""
         )
         print(f"  {index}. {model['id']}{suffix}")
     if not models:
-        print(
-            "  No model IDs advertised. Enter an exact model or route ID "
-            "and its verified context limit."
-        )
+        print("  No model IDs advertised. Enter an exact model or route ID.")
     known = {model["id"]: model for model in models}
     default = current if current in known else models[0]["id"] if models else ""
     while True:
@@ -254,20 +266,7 @@ def _choose_model(models, current, api_key):
         if _safe_model_id(selected) and api_key not in selected:
             break
         print("Enter a valid model ID or list number.")
-    context = known.get(selected, {}).get("context_length")
-    if not isinstance(context, int) or isinstance(context, bool) or context <= 0:
-        while True:
-            text = input(
-                "Verified context length in tokens (required; consult the model or route owner): "
-            ).strip()
-            try:
-                context = int(text.replace(",", "").replace("_", ""))
-            except ValueError:
-                context = 0
-            if context > 0:
-                break
-            print("Enter the verified positive integer context limit; no default is assumed.")
-    return selected, context
+    return selected
 
 
 def _existing_aixy(config):
@@ -280,8 +279,11 @@ def _existing_aixy(config):
     return existing, legacy
 
 
-def _inference_config(raw, base_url, model_id, context):
+def _inference_config(raw, base_url, model_id, context=None):
     result = copy.deepcopy(raw)
+    # A context pin wins over Hermes' model detection, including after switching
+    # models. Remove prior pins unless the user explicitly supplies an override.
+    result.pop("context_length", None)
     # Replacement is confirmed before prompting for a key. Do not carry a
     # previous endpoint's credential commands, headers or disabled flag forward.
     result.setdefault("providers", {})["aixy"] = {
@@ -301,11 +303,11 @@ def _inference_config(raw, base_url, model_id, context):
         if isinstance(model, dict)
         else {}
     )
+    model.pop("context_length", None)
     model.update(
         {
             "provider": "aixy",
             "default": model_id,
-            "context_length": context,
             "base_url": "",
             "api_key": "",
             "key_env": "",
@@ -314,6 +316,8 @@ def _inference_config(raw, base_url, model_id, context):
             "openai_runtime": "auto",
         }
     )
+    if context is not None:
+        model["context_length"] = context
     result["model"] = model
     return result
 
@@ -367,8 +371,12 @@ def run_setup(args):
             if isinstance(current, dict) and current.get("provider") == "aixy"
             else ""
         )
-        model_id, context = _choose_model(models, current_id, api_key)
-        print(f"Aixy inference: {base_url}; model {model_id}; context {context} tokens.")
+        model_id = _choose_model(models, current_id, api_key)
+        context = getattr(args, "context_length", None)
+        context_summary = (
+            f"{context:,} tokens (override)" if context is not None else "automatic (Hermes)"
+        )
+        print(f"Aixy inference: {base_url}; model {model_id}; context {context_summary}.")
         print("This makes the selected Aixy model the active default for new Hermes sessions.")
         if not _confirm("Save inference settings and use this active model?"):
             print("Cancelled. Inference settings and credentials were not changed.")
@@ -503,5 +511,6 @@ def handle_command(args):
         return run_setup(args)
     if getattr(args, "aixy_command", None) == "mcp":
         return run_mcp(args)
-    print("Usage: hermes aixy setup [--base-url URL] [--mcp-url URL] | hermes aixy mcp [--url URL]")
+    print("Usage: hermes aixy setup [--base-url URL] [--mcp-url URL] [--context-length TOKENS]")
+    print("       hermes aixy mcp [--url URL]")
     return 0

@@ -254,7 +254,7 @@ class SetupBehaviorTests(unittest.TestCase):
         if "save" in normalized:
             return "y"
         if "context" in normalized:
-            return "32768"
+            raise AssertionError("Setup must not ask the user for a context length")
         return ""
 
     def command(self, *args):
@@ -263,10 +263,12 @@ class SetupBehaviorTests(unittest.TestCase):
         return setup.handle_command(parser.parse_args(args))
 
     def test_default_choice_configures_inference_without_contacting_mcp(self):
-        self.command("setup", "--base-url", DEFAULT_BASE)
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
         self.assertEqual(self.config.state["model"]["provider"], "aixy")
         self.assertEqual(self.config.state["model"]["default"], "aixy/coding")
-        self.assertEqual(self.config.state["model"]["context_length"], 64000)
+        self.assertNotIn("context_length", self.config.state["model"])
+        self.assertNotIn("context_length", self.config.state)
+        self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
         self.native_mcp.assert_not_called()
         self.assertTrue(any("mcp" in prompt.lower() for prompt in self.prompts))
 
@@ -409,12 +411,92 @@ class SetupBehaviorTests(unittest.TestCase):
         self.command("mcp", "--url", "http://gateway.example/mcp")
         self.native_mcp.assert_not_called()
 
-    def test_unknown_context_requires_explicit_local_value(self):
+    def test_unknown_context_uses_automatic_resolution_without_a_prompt(self):
         self.fetch.return_value = [{"id": "aixy/coding"}]
-        self.answers["context"] = "96000"
-        self.command("setup", "--base-url", DEFAULT_BASE)
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        self.assertNotIn("context_length", self.config.state["model"])
+        self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
+
+    def test_advertised_context_is_informational_and_does_not_pin_later_models(self):
+        self.fetch.return_value = [{"id": "openai/test-model", "context_length": 96000}]
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        self.assertIn("96000", self.output.getvalue())
+        self.assertEqual(self.config.state["model"]["default"], "openai/test-model")
+        self.assertNotIn("context_length", self.config.state["model"])
+        self.assertNotIn("context_length", self.config.state)
+        self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
+
+    def test_malformed_catalog_context_never_requires_input_or_persists_a_limit(self):
+        for value in (None, "128000", 0, -1, True, 1.5):
+            with self.subTest(context=value):
+                self.config.state = copy.deepcopy(self.existing)
+                self.prompts.clear()
+                self.fetch.return_value = setup.parse_catalog(
+                    {"data": [{"id": "aixy/coding", "context_length": value}]}
+                )
+                self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+                self.assertNotIn("context_length", self.config.state["model"])
+                self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
+
+    def test_manually_selected_route_needs_no_context_input(self):
+        self.answers["model id"] = "aixy/manual-route"
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        self.assertEqual(self.config.state["model"]["default"], "aixy/manual-route")
+        self.assertNotIn("context_length", self.config.state["model"])
+        self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
+
+    def test_empty_catalog_allows_an_exact_model_without_context_input(self):
+        self.fetch.return_value = []
+        self.answers["model id"] = "openai/test-model"
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        self.assertEqual(self.config.state["model"]["default"], "openai/test-model")
+        self.assertNotIn("context_length", self.config.state["model"])
+        self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
+        self.assertNotIn("verified context limit", self.output.getvalue())
+
+    def test_automatic_setup_removes_old_global_and_provider_context_overrides(self):
+        self.config.state["context_length"] = 8192
+        self.config.state["model"]["context_length"] = 16384
+        self.config.state["providers"]["aixy"] = {
+            "api": DEFAULT_BASE,
+            "context_length": 32768,
+            "max_context_length": 65536,
+        }
+        self.answers["replace"] = "y"
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        self.assertNotIn("context_length", self.config.state)
+        self.assertNotIn("context_length", self.config.state["model"])
+        self.assertEqual(
+            self.config.state["providers"]["aixy"],
+            {"api": DEFAULT_BASE, "api_key": "${AIXY_API_KEY}", "transport": "openai_chat"},
+        )
+        self.assertEqual(self.config.state["display"], self.existing["display"])
+        self.assertEqual(self.config.state["model"]["temperature"], 0.2)
+
+    def test_advanced_explicit_context_override_is_saved_without_an_extra_prompt(self):
+        self.config.state["context_length"] = 8192
+        self.config.state["model"]["context_length"] = 16384
+        self.assertEqual(
+            self.command("setup", "--base-url", DEFAULT_BASE, "--context-length", "96000"), 0
+        )
         self.assertEqual(self.config.state["model"]["context_length"], 96000)
-        self.assertTrue(any("context" in prompt.lower() for prompt in self.prompts))
+        self.assertNotIn("context_length", self.config.state)
+        self.assertFalse(any("context" in prompt.lower() for prompt in self.prompts))
+
+    def test_invalid_context_override_is_rejected_by_argparse_before_any_io(self):
+        for value in ("0", "-1", "not-a-number", "1.5"):
+            with self.subTest(context=value):
+                with self.assertRaises(SystemExit) as caught:
+                    self.command("setup", "--context-length", value)
+                self.assertEqual(caught.exception.code, 2)
+        self.config.require_readable_config_before_write.assert_not_called()
+        self.config.save_config.assert_not_called()
+        self.config.save_env_value_secure.assert_not_called()
+        self.secret_lookup.assert_not_called()
+        self.secret_prompt.assert_not_called()
+        self.fetch.assert_not_called()
+        self.native_mcp.assert_not_called()
+        self.assertEqual(self.prompts, [])
 
     def test_declining_save_has_no_persistent_effect(self):
         self.answers["save"] = ""
@@ -473,6 +555,20 @@ class SetupBehaviorTests(unittest.TestCase):
         self.assertEqual(self.config.state["model"]["provider"], "aixy")
         self.assertEqual(self.config.state["model"]["default"], "aixy/coding")
         self.assertNotIn(FAKE_KEY, self.output.getvalue())
+
+
+class ModelSelectionTests(unittest.TestCase):
+    def test_choosing_by_list_number_returns_only_the_exact_model_id(self):
+        catalog = [
+            {"id": "openai/test-model", "context_length": 96000},
+            {"id": "aixy/route"},
+        ]
+        with contextlib.redirect_stdout(io.StringIO()):
+            with patch("builtins.input", return_value="2") as prompt:
+                selected = setup._choose_model(catalog, "", FAKE_KEY)
+        self.assertEqual(selected, "aixy/route")
+        prompt.assert_called_once()
+        self.assertNotIn("context", prompt.call_args.args[0].lower())
 
 
 class EndpointValidationTests(unittest.TestCase):

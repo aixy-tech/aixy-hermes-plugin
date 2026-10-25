@@ -1,5 +1,5 @@
 name: aixy
-version: "0.1.0"
+version: "0.1.1"
 description: "Configure Aixy inference and optionally connect Aixy tools through native MCP OAuth."
 author: "Aixy"
 license: MIT

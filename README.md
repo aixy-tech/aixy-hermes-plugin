@@ -12,8 +12,10 @@ hermes plugins install aixy-tech/aixy-hermes-plugin --enable
 hermes aixy setup
 ```
 
-Enter your gateway, project API key (hidden), and model. If prompted, enter the model's verified
-context limit. Confirm to make Aixy your default provider, then start a new Hermes session.
+Enter your gateway, project API key (hidden), and model. Hermes manages context automatically.
+Confirm to make Aixy your default provider, then start a new Hermes session.
+
+For routes Hermes cannot identify, `--context-length <tokens>` lets you set a known limit.
 
 ## Optional MCP
 
