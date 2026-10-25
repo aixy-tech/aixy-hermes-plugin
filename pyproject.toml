@@ -1,6 +1,6 @@
 [project]
 name = "aixy-hermes-plugin"
-version = "0.1.0"
+version = "0.1.1"
 description = "Guided Aixy inference setup with optional MCP OAuth for Hermes"
 license = "MIT"
 requires-python = ">=3.11"
