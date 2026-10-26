@@ -272,6 +272,45 @@ class SetupBehaviorTests(unittest.TestCase):
         self.native_mcp.assert_not_called()
         self.assertTrue(any("mcp" in prompt.lower() for prompt in self.prompts))
 
+    def test_session_correlation_configures_a_header_name_without_static_identifiers(self):
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        provider = self.config.state["providers"]["aixy"]
+        self.assertEqual(provider["session_affinity_header"], "X-Aixy-Session-ID")
+        for field in ("headers", "extra_headers", "session_id", "request_id"):
+            self.assertNotIn(field, provider)
+        self.assertNotIn("x-request-id", json.dumps(provider).lower())
+
+    def test_custom_deployment_gets_correlation_without_changing_another_provider(self):
+        self.config.state["providers"]["other"]["session_affinity_header"] = "Other-Session"
+        other = copy.deepcopy(self.config.state["providers"]["other"])
+        self.assertEqual(self.command("setup", "--base-url", "https://gateway.example/aixy/v1"), 0)
+        provider = self.config.state["providers"]["aixy"]
+        self.assertEqual(provider["api"], "https://gateway.example/aixy/v1")
+        self.assertEqual(provider["session_affinity_header"], "X-Aixy-Session-ID")
+        self.assertEqual(self.config.state["providers"]["other"], other)
+        self.assertEqual(self.config.state["mcp_servers"], self.existing["mcp_servers"])
+
+    def test_rerunning_setup_removes_fixed_session_and_request_headers(self):
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        self.config.state["providers"]["aixy"].update(
+            {
+                "session_affinity_header": "X-Request-ID",
+                "extra_headers": {
+                    "X-Request-ID": "fixed-request",
+                    "X-Aixy-Session-ID": "fixed-conversation",
+                },
+            }
+        )
+        self.answers["replace"] = "y"
+        self.assertEqual(self.command("setup", "--base-url", DEFAULT_BASE), 0)
+        provider = self.config.state["providers"]["aixy"]
+        self.assertEqual(provider["session_affinity_header"], "X-Aixy-Session-ID")
+        self.assertNotIn("extra_headers", provider)
+        self.assertNotIn("x-request-id", json.dumps(provider).lower())
+        self.assertEqual(
+            self.config.state["providers"]["other"], self.existing["providers"]["other"]
+        )
+
     def test_preserves_unrelated_provider_mcp_and_settings(self):
         self.command("setup", "--base-url", DEFAULT_BASE)
         self.assertEqual(
@@ -317,7 +356,12 @@ class SetupBehaviorTests(unittest.TestCase):
         self.command("setup", "--base-url", DEFAULT_BASE)
         self.assertEqual(
             self.config.state["providers"]["aixy"],
-            {"api": DEFAULT_BASE, "api_key": "${AIXY_API_KEY}", "transport": "openai_chat"},
+            {
+                "api": DEFAULT_BASE,
+                "api_key": "${AIXY_API_KEY}",
+                "transport": "openai_chat",
+                "session_affinity_header": "X-Aixy-Session-ID",
+            },
         )
 
     def test_saved_key_is_not_reused_when_changing_gateway(self):
@@ -468,7 +512,12 @@ class SetupBehaviorTests(unittest.TestCase):
         self.assertNotIn("context_length", self.config.state["model"])
         self.assertEqual(
             self.config.state["providers"]["aixy"],
-            {"api": DEFAULT_BASE, "api_key": "${AIXY_API_KEY}", "transport": "openai_chat"},
+            {
+                "api": DEFAULT_BASE,
+                "api_key": "${AIXY_API_KEY}",
+                "transport": "openai_chat",
+                "session_affinity_header": "X-Aixy-Session-ID",
+            },
         )
         self.assertEqual(self.config.state["display"], self.existing["display"])
         self.assertEqual(self.config.state["model"]["temperature"], 0.2)

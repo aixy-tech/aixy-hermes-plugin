@@ -290,6 +290,7 @@ def _inference_config(raw, base_url, model_id, context=None):
         "api": base_url,
         "api_key": API_KEY_REF,
         "transport": "openai_chat",
+        "session_affinity_header": "X-Aixy-Session-ID",
     }
     if "custom_providers" in result:
         result["custom_providers"] = [
