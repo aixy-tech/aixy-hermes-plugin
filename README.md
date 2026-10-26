@@ -32,10 +32,12 @@ Choose your tools, then start a new session or run `/reload-mcp`.
 Setup reads and updates the selected Hermes profile. It fetches your gateway's model catalog using
 the project key and stores that key through Hermes. It sends no inference requests.
 
+Model requests carry Hermes' conversation ID in `X-Aixy-Session-ID` so Activity can group them.
+
 MCP setup launches Hermes' native CLI with the selected profile and process environment, with
 unattended and YOLO flags disabled. It contacts your MCP endpoint and OAuth service and saves the
 connection settings and credentials through Hermes. Normal tool approvals remain in place.
 
-The plugin adds no telemetry or background services.
+No separate telemetry or background services.
 
 [MIT license](LICENSE).
