@@ -40,4 +40,6 @@ connection settings and credentials through Hermes. Normal tool approvals remain
 
 No separate telemetry or background services.
 
+[Native contract checks](tests/native/README.md).
+
 [MIT license](LICENSE).
