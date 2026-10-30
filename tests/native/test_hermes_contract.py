@@ -119,7 +119,10 @@ class NativeHermesContractTests(unittest.TestCase):
 
     def setUp(self):
         config = self.setup._inference_config(
-            {"providers": {"other": {"api": OTHER_BASE, "api_key": "fake-other-key"}}},
+            {
+                "agent": {"environment_probe": False},
+                "providers": {"other": {"api": OTHER_BASE, "api_key": "fake-other-key"}},
+            },
             BASE,
             MODEL,
         )
@@ -297,6 +300,8 @@ class NativeHermesContractTests(unittest.TestCase):
             response = client.chat.completions.create(**kwargs)
         normalized = agent._get_transport().normalize_response(response)
         self.assertEqual(normalized.tool_calls[0].name, "synthetic_echo")
+        self.assertEqual(normalized.tool_calls[0].id, "synthetic-call")
+        self.assertEqual(json.loads(normalized.tool_calls[0].arguments), {"value": "synthetic"})
         self.assertEqual(normalized.finish_reason, "tool_calls")
         self.assertEqual(
             agent._get_transport().extract_cache_stats(response),

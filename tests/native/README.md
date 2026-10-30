@@ -16,7 +16,8 @@ Running the native suite without `AIXY_HERMES_SOURCE` skips its tests.
 
 The native suite creates and removes a disposable `HERMES_HOME`, keeps `HOME` unchanged, strips
 credential environment variables, uses fake keys, and blocks DNS and outbound sockets before
-importing Hermes. HTTP responses use `httpx.MockTransport`. It checks saved configuration and
+importing Hermes. Its test configuration disables Hermes' background environment probe.
+HTTP responses use `httpx.MockTransport`. It checks saved configuration and
 runtime resolution, main Chat/Responses builders, tool-call normalization, SDK SSE decoding and
 cache-stat extraction, auxiliary routing, conversation scope through compaction/reset, and context
 metadata/override/fallback behavior. An opaque route without metadata currently falls back to
