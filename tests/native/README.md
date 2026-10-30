@@ -12,12 +12,12 @@ PYTHONDONTWRITEBYTECODE=1 AIXY_HERMES_SOURCE=/absolute/path/to/hermes-agent \
 ```
 
 The ordinary `python3 -m unittest discover -s tests -v` suite remains independent of Hermes.
-Running the native suite without `AIXY_HERMES_SOURCE` skips its tests.
+Without `AIXY_HERMES_SOURCE`, native-client cases skip and the dependency-free request-gate cases run.
 
 The native suite creates and removes a disposable `HERMES_HOME`, keeps `HOME` unchanged, strips
 credential environment variables, uses fake keys, and blocks DNS and outbound sockets before
 importing Hermes. Its test configuration disables Hermes' background environment probe.
-HTTP responses use `httpx.MockTransport`. It checks saved configuration and
+HTTP responses are simulated. It checks saved configuration and
 runtime resolution, main Chat/Responses builders, tool-call normalization, SDK SSE decoding and
 cache-stat extraction, auxiliary routing, conversation scope through compaction/reset, and context
 metadata/override/fallback behavior. An opaque route without metadata currently falls back to
@@ -26,3 +26,6 @@ metadata/override/fallback behavior. An opaque route without metadata currently 
 These checks do not execute a complete agent turn, prove real cache hits or provider inference,
 or authorize MCP OAuth. Keep live-account verification separate. Internal Hermes test seams are
 version-sensitive; failures after changing Hermes require review, not automatic baseline changes.
+
+The [manual inference smoke runner](LIVE_SMOKE.md) is separate from routine validation. Its automated
+self-tests use only fake keys and fake HTTP; live execution requires explicit authorization.
