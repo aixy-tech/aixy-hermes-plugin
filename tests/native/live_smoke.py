@@ -427,17 +427,9 @@ def run_smoke(settings, source, key, *, execute=False, responder=None):
             tool = calls[0]
             history = [
                 *messages,
-                {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {
-                            "id": tool.id,
-                            "type": "function",
-                            "function": {"name": tool.name, "arguments": tool.arguments},
-                        }
-                    ],
-                },
+                primary._build_assistant_message(
+                    response.choices[0].message, response.choices[0].finish_reason
+                ),
                 {"role": "tool", "tool_call_id": tool.id, "content": str(2 + 3)},
                 {"role": "user", "content": "Reply with the result only."},
             ]
