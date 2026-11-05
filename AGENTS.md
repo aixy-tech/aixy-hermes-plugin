@@ -27,6 +27,11 @@ implementation, internal documentation, credentials, and tenant data out of it.
 - Use a focused issue, dedicated branch/worktree, and linked pull request for maintainer-requested
   changes. Keep local validation, automatic CI, direct installation, Hermes catalog review,
   publication, and real-account verification distinct.
+- Build every PR body from `.github/PULL_REQUEST_TEMPLATE.md`; the CLI and API do not load it.
+  Keep its headings unchanged and in order (`Related issue`, `Implementation`, `Validation`,
+  `Risks and deviations`) and remove the guidance comments. Mark only verified checklist items
+  and explain the others in place, report local validation and automatic CI separately, and
+  write `None` when there are no risks or deviations.
 - Do not manually dispatch, rerun, or enable GitHub Actions without a maintainer's specific request.
 - Increment `plugin.yaml` and `pyproject.toml` versions together for releases. Do not add or change
   a license without the maintainer's decision.
