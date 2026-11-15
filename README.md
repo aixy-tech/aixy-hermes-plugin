@@ -25,7 +25,7 @@ Setup offers to connect MCP through browser OAuth. The default is **No**. To con
 hermes aixy mcp
 ```
 
-Choose your tools, then start a new session or run `/reload-mcp`.
+Choose your tools, then start a new Hermes session.
 
 ## What setup changes
 

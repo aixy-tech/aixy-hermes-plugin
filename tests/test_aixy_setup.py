@@ -405,7 +405,8 @@ class SetupBehaviorTests(unittest.TestCase):
             self.config.state["mcp_servers"]["existing"],
             self.existing["mcp_servers"]["existing"],
         )
-        self.assertIn("Aixy MCP configured", self.output.getvalue())
+        self.assertIn("Aixy MCP configured. Start a new Hermes session.", self.output.getvalue())
+        self.assertNotIn("/reload-mcp", self.output.getvalue())
 
     def test_native_exit_without_saving_oauth_does_not_report_mcp_success(self):
         self.answers["mcp"] = "y"

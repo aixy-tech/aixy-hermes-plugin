@@ -489,7 +489,7 @@ def run_mcp(args):
             and saved.get("auth") == "oauth"
             and saved.get("enabled", True) is not False
         ):
-            print("Aixy MCP configured. Start a new session or use /reload-mcp.")
+            print("Aixy MCP configured. Start a new Hermes session.")
             return 0
         print("Aixy MCP setup did not finish. Retry with: hermes aixy mcp")
         print("Previously saved inference settings are kept.")
