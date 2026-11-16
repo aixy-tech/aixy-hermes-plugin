@@ -35,3 +35,9 @@ implementation, internal documentation, credentials, and tenant data out of it.
 - Do not manually dispatch, rerun, or enable GitHub Actions without a maintainer's specific request.
 - Increment `plugin.yaml` and `pyproject.toml` versions together for releases. Do not add or change
   a license without the maintainer's decision.
+- The Hermes marketplace renders `README.md` from the pinned commit through an allowlist: raw HTML
+  is dropped and relative links and images resolve against the pinned tree. Use plain Markdown and
+  keep the README's effect descriptions identical in substance to the catalog entry's disclosure.
+- `assets/cover.jpg` is the 2:1 marketplace cover that the catalog entry's `image` field pins by
+  commit. Replace it only with a same-ratio file under 1 MB, and re-pin the entry's `image` URL
+  when the pinned commit changes.
